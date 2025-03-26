@@ -1,12 +1,35 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+
+import React, { useEffect } from 'react';
+import Header from '../components/Header';
+import HeroSection from '../components/HeroSection';
+import MissionSelect from '../components/MissionSelect';
+import Footer from '../components/Footer';
+import { useToast } from "@/hooks/use-toast";
 
 const Index = () => {
+  const { toast } = useToast();
+  
+  useEffect(() => {
+    // Welcome toast notification
+    const timer = setTimeout(() => {
+      toast({
+        title: "CONNECTION ESTABLISHED",
+        description: "Welcome to the network, Netrunner.",
+        className: "bg-cyber-dark border border-cyber-cyan/30 text-cyber-cyan"
+      });
+    }, 3000);
+    
+    return () => clearTimeout(timer);
+  }, [toast]);
+  
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-gray-600">Start building your amazing project here!</p>
-      </div>
+    <div className="min-h-screen bg-cyber-black font-cyber text-cyber-gray overflow-hidden">
+      <Header />
+      <main>
+        <HeroSection />
+        <MissionSelect />
+      </main>
+      <Footer />
     </div>
   );
 };

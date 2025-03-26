@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -61,6 +62,17 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				// Cyberpunk theme colors
+				cyber: {
+					'black': '#0B0C10',
+					'dark': '#1F2833',
+					'gray': '#C5C6C7',
+					'cyan': '#66FCF1',
+					'cyan-dark': '#45A29E',
+					'purple': '#7928CA',
+					'pink': '#FF0080',
+					'red': '#FF4545'
 				}
 			},
 			borderRadius: {
@@ -68,27 +80,75 @@ export default {
 				md: 'calc(var(--radius) - 2px)',
 				sm: 'calc(var(--radius) - 4px)'
 			},
+			fontFamily: {
+				'cyber': ['Share Tech Mono', 'monospace'],
+				'display': ['Orbitron', 'sans-serif']
+			},
+			boxShadow: {
+				'neon': '0 0 5px theme(colors.cyber.cyan), 0 0 20px rgba(102, 252, 241, 0.3)',
+				'neon-purple': '0 0 5px theme(colors.cyber.purple), 0 0 20px rgba(121, 40, 202, 0.3)',
+				'neon-pink': '0 0 5px theme(colors.cyber.pink), 0 0 20px rgba(255, 0, 128, 0.3)',
+			},
 			keyframes: {
 				'accordion-down': {
-					from: {
-						height: '0'
-					},
-					to: {
-						height: 'var(--radix-accordion-content-height)'
-					}
+					from: { height: '0' },
+					to: { height: 'var(--radix-accordion-content-height)' }
 				},
 				'accordion-up': {
-					from: {
-						height: 'var(--radix-accordion-content-height)'
+					from: { height: 'var(--radix-accordion-content-height)' },
+					to: { height: '0' }
+				},
+				'pulse-cyan': {
+					'0%, 100%': { 
+						opacity: '1',
+						boxShadow: '0 0 10px rgba(102, 252, 241, 0.8), 0 0 20px rgba(102, 252, 241, 0.3)' 
 					},
-					to: {
-						height: '0'
+					'50%': { 
+						opacity: '0.7',
+						boxShadow: '0 0 15px rgba(102, 252, 241, 0.8), 0 0 30px rgba(102, 252, 241, 0.5)' 
 					}
+				},
+				'fade-in': {
+					'0%': { opacity: '0', transform: 'translateY(10px)' },
+					'100%': { opacity: '1', transform: 'translateY(0)' }
+				},
+				'glitch': {
+					'0%': { transform: 'translate(0)' },
+					'20%': { transform: 'translate(-2px, 2px)' },
+					'40%': { transform: 'translate(-2px, -2px)' },
+					'60%': { transform: 'translate(2px, 2px)' },
+					'80%': { transform: 'translate(2px, -2px)' },
+					'100%': { transform: 'translate(0)' }
+				},
+				'scan-line': {
+					'0%': { transform: 'translateY(0)' },
+					'100%': { transform: 'translateY(100vh)' }
+				},
+				'float': {
+					'0%, 100%': { transform: 'translateY(0)' },
+					'50%': { transform: 'translateY(-10px)' }
+				},
+				'typing': {
+					'from': { width: '0' },
+					'to': { width: '100%' }
+				},
+				'blink': {
+					'50%': { borderColor: 'transparent' }
 				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				'pulse-cyan': 'pulse-cyan 3s infinite',
+				'fade-in': 'fade-in 0.5s ease-out',
+				'glitch': 'glitch 0.8s ease-in-out infinite',
+				'scan-line': 'scan-line 8s linear infinite',
+				'float': 'float 6s ease-in-out infinite',
+				'typing': 'typing 3.5s steps(30, end), blink .75s step-end infinite'
+			},
+			backdropFilter: {
+				'none': 'none',
+				'blur': 'blur(20px)'
 			}
 		}
 	},
