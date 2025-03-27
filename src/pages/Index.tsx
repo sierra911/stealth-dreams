@@ -1,5 +1,4 @@
-
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import Header from '../components/Header';
 import HeroSection from '../components/HeroSection';
 import MissionSelect from '../components/MissionSelect';
@@ -8,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 
 const Index = () => {
   const { toast } = useToast();
+  const [gameStarted, setGameStarted] = useState(false);
   
   useEffect(() => {
     // Welcome toast notification

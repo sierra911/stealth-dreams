@@ -1,7 +1,8 @@
-
 import React, { useState } from 'react';
 import { Shield, Cpu, Database, Wifi } from 'lucide-react';
 import { useReveal } from '../utils/animations';
+import HackingGame from './HackingGame';
+import MissionResults from './MissionResults';
 
 interface Mission {
   id: number;
@@ -11,6 +12,7 @@ interface Mission {
   rewards: string;
   icon: React.ReactNode;
   company: string;
+  timeLimit: number; // in seconds
 }
 
 const missions: Mission[] = [
@@ -21,7 +23,8 @@ const missions: Mission[] = [
     difficulty: 'Medium',
     rewards: "5,000 EC + Rare Cyberware",
     icon: <Database className="w-10 h-10 text-cyber-cyan" />,
-    company: "ARASAKA"
+    company: "ARASAKA",
+    timeLimit: 180  // 3 minutes
   },
   {
     id: 2,
@@ -30,7 +33,8 @@ const missions: Mission[] = [
     difficulty: 'Hard',
     rewards: "8,000 EC + Advanced Hacking Tool",
     icon: <Wifi className="w-10 h-10 text-cyber-cyan" />,
-    company: "MILITECH"
+    company: "MILITECH",
+    timeLimit: 240  // 4 minutes
   },
   {
     id: 3,
@@ -39,7 +43,8 @@ const missions: Mission[] = [
     difficulty: 'Expert',
     rewards: "12,000 EC + Legendary Program",
     icon: <Shield className="w-10 h-10 text-cyber-cyan" />,
-    company: "NIGHT CITY BANK"
+    company: "NIGHT CITY BANK",
+    timeLimit: 300  // 5 minutes
   },
   {
     id: 4,
@@ -48,7 +53,8 @@ const missions: Mission[] = [
     difficulty: 'Easy',
     rewards: "3,000 EC + Common Implant",
     icon: <Cpu className="w-10 h-10 text-cyber-cyan" />,
-    company: "BIOTECHNICA"
+    company: "BIOTECHNICA",
+    timeLimit: 120  // 2 minutes
   }
 ];
 
@@ -61,11 +67,62 @@ const difficultyColors = {
 
 const MissionSelect: React.FC = () => {
   const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
+  const [gameState, setGameState] = useState<'selection' | 'playing' | 'results'>('selection');
+  const [gameResults, setGameResults] = useState<{success: boolean, timeLeft: number} | null>(null);
   const { ref: sectionRef, revealed: sectionRevealed } = useReveal();
+  
+  const handleMissionSelect = (mission: Mission) => {
+    setSelectedMission(mission);
+  };
+  
+  const handleLaunchMission = () => {
+    if (selectedMission) {
+      setGameState('playing');
+    }
+  };
+  
+  const handleGameComplete = (success: boolean, timeLeft: number) => {
+    setGameResults({ success, timeLeft });
+    setGameState('results');
+  };
+  
+  const handleReturn = () => {
+    setGameState('selection');
+    setSelectedMission(null);
+    setGameResults(null);
+  };
+  
+  if (gameState === 'playing' && selectedMission) {
+    return (
+      <HackingGame 
+        missionId={selectedMission.id}
+        missionTitle={selectedMission.title}
+        missionCompany={selectedMission.company}
+        difficulty={selectedMission.difficulty}
+        timeLimit={selectedMission.timeLimit}
+        onComplete={handleGameComplete}
+        onExit={handleReturn}
+      />
+    );
+  }
+  
+  if (gameState === 'results' && selectedMission && gameResults) {
+    return (
+      <MissionResults
+        success={gameResults.success}
+        missionTitle={selectedMission.title}
+        missionCompany={selectedMission.company}
+        timeLeft={gameResults.timeLeft}
+        timeLimit={selectedMission.timeLimit}
+        difficulty={selectedMission.difficulty}
+        rewards={selectedMission.rewards}
+        onReturn={handleReturn}
+      />
+    );
+  }
   
   return (
     <section id="missions" className="py-20 relative">
-      {/* Grid background */}
       <div className="absolute inset-0 cyber-grid-bg opacity-10"></div>
       
       <div 
@@ -89,9 +146,9 @@ const MissionSelect: React.FC = () => {
           {missions.map((mission, index) => (
             <div 
               key={mission.id}
-              className={`glass-card p-5 transition-all duration-500 cursor-pointer hover:border-cyber-cyan/50 hover:shadow-neon group`}
+              className={`glass-card p-5 transition-all duration-500 cursor-pointer hover:border-cyber-cyan/50 hover:shadow-neon group ${selectedMission?.id === mission.id ? 'border-cyber-cyan shadow-neon' : ''}`}
               style={{ animationDelay: `${index * 100}ms` }}
-              onClick={() => setSelectedMission(mission)}
+              onClick={() => handleMissionSelect(mission)}
             >
               <div className="mb-4 flex justify-between items-start">
                 <div className="p-2 cyber-border bg-cyber-dark/70">
@@ -138,7 +195,10 @@ const MissionSelect: React.FC = () => {
               </div>
               
               <div>
-                <button className="cyber-border px-6 py-2 text-cyber-cyan hover:bg-cyber-cyan/10 hover:shadow-neon transition-all duration-300">
+                <button 
+                  className="cyber-border px-6 py-2 text-cyber-cyan hover:bg-cyber-cyan/10 hover:shadow-neon transition-all duration-300"
+                  onClick={handleLaunchMission}
+                >
                   LAUNCH MISSION
                 </button>
               </div>
@@ -161,7 +221,7 @@ const MissionSelect: React.FC = () => {
               </div>
               <div className="glass-card p-4">
                 <h4 className="text-cyber-pink mb-2 font-cyber">TIMEFRAME:</h4>
-                <p className="text-cyber-gray/90">6:00 minutes</p>
+                <p className="text-cyber-gray/90">{Math.floor(selectedMission.timeLimit / 60)}:00 minutes</p>
               </div>
               <div className="glass-card p-4">
                 <h4 className="text-cyber-pink mb-2 font-cyber">SUCCESS RATE:</h4>
