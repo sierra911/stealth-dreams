@@ -1,8 +1,10 @@
+
 import React, { useState } from 'react';
 import { Shield, Cpu, Database, Wifi } from 'lucide-react';
 import { useReveal } from '../utils/animations';
 import HackingGame from './HackingGame';
 import MissionResults from './MissionResults';
+import { useNavigate } from 'react-router-dom';
 
 interface Mission {
   id: number;
@@ -13,6 +15,7 @@ interface Mission {
   icon: React.ReactNode;
   company: string;
   timeLimit: number; // in seconds
+  gameType: 'terminal' | 'blueprint' | 'surveillance' | 'terminal-secure' | 'system-backdoor';
 }
 
 const missions: Mission[] = [
@@ -24,7 +27,8 @@ const missions: Mission[] = [
     rewards: "5,000 EC + Rare Cyberware",
     icon: <Database className="w-10 h-10 text-cyber-cyan" />,
     company: "ARASAKA",
-    timeLimit: 180  // 3 minutes
+    timeLimit: 300,  // 5 minutes
+    gameType: 'blueprint'
   },
   {
     id: 2,
@@ -34,7 +38,8 @@ const missions: Mission[] = [
     rewards: "8,000 EC + Advanced Hacking Tool",
     icon: <Wifi className="w-10 h-10 text-cyber-cyan" />,
     company: "MILITECH",
-    timeLimit: 240  // 4 minutes
+    timeLimit: 240,  // 4 minutes
+    gameType: 'surveillance'
   },
   {
     id: 3,
@@ -44,7 +49,8 @@ const missions: Mission[] = [
     rewards: "12,000 EC + Legendary Program",
     icon: <Shield className="w-10 h-10 text-cyber-cyan" />,
     company: "NIGHT CITY BANK",
-    timeLimit: 300  // 5 minutes
+    timeLimit: 300,  // 5 minutes
+    gameType: 'terminal-secure'
   },
   {
     id: 4,
@@ -54,7 +60,8 @@ const missions: Mission[] = [
     rewards: "3,000 EC + Common Implant",
     icon: <Cpu className="w-10 h-10 text-cyber-cyan" />,
     company: "BIOTECHNICA",
-    timeLimit: 120  // 2 minutes
+    timeLimit: 120,  // 2 minutes
+    gameType: 'system-backdoor'
   }
 ];
 
@@ -66,6 +73,7 @@ const difficultyColors = {
 };
 
 const MissionSelect: React.FC = () => {
+  const navigate = useNavigate();
   const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
   const [gameState, setGameState] = useState<'selection' | 'playing' | 'results'>('selection');
   const [gameResults, setGameResults] = useState<{success: boolean, timeLeft: number} | null>(null);
@@ -77,7 +85,18 @@ const MissionSelect: React.FC = () => {
   
   const handleLaunchMission = () => {
     if (selectedMission) {
-      setGameState('playing');
+      if (selectedMission.gameType === 'terminal') {
+        setGameState('playing');
+      } else if (selectedMission.gameType === 'blueprint') {
+        navigate('/game/blueprint-extraction', { 
+          state: { 
+            mission: selectedMission
+          }
+        });
+      } else {
+        // For other game types that aren't implemented yet, fallback to terminal
+        setGameState('playing');
+      }
     }
   };
   
