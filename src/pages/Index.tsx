@@ -8,20 +8,21 @@ import Footer from '../components/Footer';
 import { useToast } from "@/hooks/use-toast";
 import MissionResults from '../components/MissionResults';
 
+interface MissionResultsData {
+  missionCompleted: number;
+  success: boolean;
+  timeLeft: number;
+}
+
 const Index = () => {
   const { toast } = useToast();
   const location = useLocation();
-  const [gameStarted, setGameStarted] = useState(false);
-  const [missionResults, setMissionResults] = useState<{
-    missionCompleted: number;
-    success: boolean;
-    timeLeft: number;
-  } | null>(null);
+  const [missionResults, setMissionResults] = useState<MissionResultsData | null>(null);
   
   useEffect(() => {
     // Check if returning from a completed mission
-    if (location.state && 'missionCompleted' in location.state) {
-      const { missionCompleted, success, timeLeft } = location.state as any;
+    if (location.state && typeof location.state === 'object' && 'missionCompleted' in location.state) {
+      const { missionCompleted, success, timeLeft } = location.state as MissionResultsData;
       setMissionResults({
         missionCompleted,
         success,
