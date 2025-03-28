@@ -2,13 +2,13 @@
 import React, { useEffect, useState } from 'react';
 import ThreeScene from './ThreeScene';
 import Terminal from './Terminal';
-import { useReveal, useTypewriter } from '../utils/animations';
+import { useReveal, useTypewriter, useDelayedReveal } from '../utils/animations';
 
 const HeroSection: React.FC = () => {
   const { ref: titleRef, revealed: titleRevealed } = useReveal();
-  const { ref: subtitleRef, revealed: subtitleRevealed } = useReveal(0.2);
-  const { ref: terminalRef, revealed: terminalRevealed } = useReveal(0.3);
-  const { ref: buttonsRef, revealed: buttonsRevealed } = useReveal(0.4);
+  const { ref: subtitleRef, revealed: subtitleRevealed } = useDelayedReveal(200);
+  const { ref: terminalRef, revealed: terminalRevealed } = useDelayedReveal(300);
+  const { ref: buttonsRef, revealed: buttonsRevealed } = useDelayedReveal(400);
   
   const { displayText: titleText } = useTypewriter(
     'NETWORK INFILTRATION', 
