@@ -1,9 +1,13 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Clock, ShieldAlert, Check } from 'lucide-react';
+import { ArrowLeft, Clock, ShieldAlert, Check, Terminal as TerminalIcon, Database, Wifi, Cpu } from 'lucide-react';
 import Terminal from './Terminal';
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import MemoryHack from './games/MemoryHack';
+import CircuitHack from './games/CircuitHack';
+import NetworkHack from './games/NetworkHack';
+import TerminalHack from './games/TerminalHack';
 
 interface GameProps {
   missionId: number;
@@ -47,6 +51,26 @@ const generatePasswordList = (difficulty: string, correctPassword: string) => {
   return passwords;
 };
 
+const getGameIcon = (missionId: number) => {
+  switch (missionId) {
+    case 1: return <Database className="w-16 h-16 text-cyber-cyan" />;
+    case 2: return <Wifi className="w-16 h-16 text-cyber-cyan" />;
+    case 3: return <TerminalIcon className="w-16 h-16 text-cyber-cyan" />;
+    case 4: return <Cpu className="w-16 h-16 text-cyber-cyan" />;
+    default: return <TerminalIcon className="w-16 h-16 text-cyber-cyan" />;
+  }
+};
+
+const getGameComponent = (missionId: number, props: any) => {
+  switch (missionId) {
+    case 1: return <MemoryHack {...props} />;
+    case 2: return <NetworkHack {...props} />; 
+    case 3: return <TerminalHack {...props} />;
+    case 4: return <CircuitHack {...props} />;
+    default: return <TerminalHack {...props} />;
+  }
+};
+
 const HackingGame: React.FC<GameProps> = ({ 
   missionId, 
   missionTitle, 
@@ -61,22 +85,9 @@ const HackingGame: React.FC<GameProps> = ({
   const [timeLeft, setTimeLeft] = useState(timeLimit);
   const [gameState, setGameState] = useState<'connecting'|'hacking'|'success'|'failed'>('connecting');
   const [securityLevel, setSecurityLevel] = useState(100);
-  const [userInput, setUserInput] = useState('');
-  const [correctPassword, setCorrectPassword] = useState('');
-  const [passwordOptions, setPasswordOptions] = useState<string[]>([]);
-  const [attempts, setAttempts] = useState(0);
-  const maxAttempts = difficultyToLevels[difficulty as keyof typeof difficultyToLevels] || 3;
-  
+
   // Setup game on start
   useEffect(() => {
-    // Generate the correct password based on difficulty
-    const level = difficultyToLevels[difficulty as keyof typeof difficultyToLevels] || 3;
-    const password = generatePassword(5 + level);
-    setCorrectPassword(password);
-    
-    // Generate password options
-    setPasswordOptions(generatePasswordList(difficulty, password));
-    
     // Start with "connecting" state
     const connectingTimer = setTimeout(() => {
       setGameState('hacking');
@@ -88,7 +99,7 @@ const HackingGame: React.FC<GameProps> = ({
     }, 3000);
     
     return () => clearTimeout(connectingTimer);
-  }, [difficulty, missionCompany, toast]);
+  }, [missionCompany, toast]);
   
   // Timer countdown
   useEffect(() => {
@@ -119,68 +130,38 @@ const HackingGame: React.FC<GameProps> = ({
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
-  
-  // Handle password submission
-  const handleSubmit = useCallback(() => {
-    if (gameState !== 'hacking') return;
+
+  const handleGameSuccess = useCallback(() => {
+    setGameState('success');
+    toast({
+      title: "ACCESS GRANTED",
+      description: "Security bypassed. Data extraction complete.",
+      className: "bg-cyber-dark border border-cyber-cyan/30 text-cyber-cyan"
+    });
     
-    if (userInput.toUpperCase() === correctPassword) {
-      // Success!
-      setGameState('success');
-      toast({
-        title: "ACCESS GRANTED",
-        description: "Security bypassed. Data extraction complete.",
-        className: "bg-cyber-dark border border-cyber-cyan/30 text-cyber-cyan"
-      });
-      
-      // Call the onComplete callback with success and remaining time
-      setTimeout(() => {
-        onComplete(true, timeLeft);
-      }, 2000);
-    } else {
-      // Wrong password
-      setAttempts(prev => {
-        const newAttempts = prev + 1;
-        const securityIncrease = Math.floor(Math.random() * 20) + 10;
-        setSecurityLevel(level => Math.min(level + securityIncrease, 100));
-        
-        if (newAttempts >= maxAttempts) {
-          setGameState('failed');
-          toast({
-            title: "ACCESS DENIED",
-            description: "Maximum attempts reached. Security lockdown initiated.",
-            className: "bg-cyber-dark border border-cyber-red/30 text-cyber-red"
-          });
-          
-          // Call the onComplete callback with failure
-          setTimeout(() => {
-            onComplete(false, timeLeft);
-          }, 2000);
-        } else {
-          toast({
-            title: "ACCESS DENIED",
-            description: `Incorrect password. Security level increased. ${maxAttempts - newAttempts} attempts remaining.`,
-            className: "bg-cyber-dark border border-cyber-red/30 text-cyber-red"
-          });
-        }
-        
-        return newAttempts;
-      });
-      setUserInput('');
-    }
-  }, [userInput, correctPassword, gameState, toast, maxAttempts, onComplete, timeLeft]);
-  
-  // Handle key press
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Enter' && userInput) {
-        handleSubmit();
-      }
-    };
+    // Call the onComplete callback with success and remaining time
+    setTimeout(() => {
+      onComplete(true, timeLeft);
+    }, 2000);
+  }, [timeLeft, onComplete, toast]);
+
+  const handleGameFailure = useCallback(() => {
+    setGameState('failed');
+    toast({
+      title: "ACCESS DENIED",
+      description: "Security protocols activated. Mission failed.",
+      className: "bg-cyber-dark border border-cyber-red/30 text-cyber-red"
+    });
     
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [userInput, handleSubmit]);
+    // Call the onComplete callback with failure
+    setTimeout(() => {
+      onComplete(false, timeLeft);
+    }, 2000);
+  }, [timeLeft, onComplete, toast]);
+  
+  const handleSecurityLevelChange = useCallback((newLevel: number) => {
+    setSecurityLevel(newLevel);
+  }, []);
   
   return (
     <div className="min-h-screen bg-cyber-black font-cyber text-cyber-gray pb-20">
@@ -233,76 +214,15 @@ const HackingGame: React.FC<GameProps> = ({
         )}
         
         {gameState === 'hacking' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
-            <div className="glass-card p-6">
-              <h2 className="text-xl text-cyber-cyan font-display mb-4">SYSTEM ACCESS TERMINAL</h2>
-              
-              <div className="cyber-border bg-cyber-black/90 p-4 mb-6 font-mono text-sm">
-                <p className="text-cyber-gray/80 mb-4">SECURITY PROTOCOL ACTIVE - PASSWORD REQUIRED</p>
-                <p className="text-cyber-cyan mb-1">POSSIBLE PASSWORD COMBINATIONS DETECTED:</p>
-                <div className="grid grid-cols-2 gap-2 mb-6">
-                  {passwordOptions.map((pass, index) => (
-                    <div key={index} className="cyber-border bg-cyber-dark/30 p-2 text-center">
-                      {pass}
-                    </div>
-                  ))}
-                </div>
-                
-                <div>
-                  <label htmlFor="password" className="text-cyber-cyan/80 mb-1 block">ENTER PASSWORD:</label>
-                  <div className="flex gap-2">
-                    <input
-                      id="password"
-                      type="text"
-                      value={userInput}
-                      onChange={(e) => setUserInput(e.target.value.toUpperCase())}
-                      className="flex-1 bg-cyber-dark border border-cyber-cyan/30 text-cyber-cyan p-2 font-mono"
-                      autoFocus
-                    />
-                    <button 
-                      onClick={handleSubmit}
-                      className="cyber-border bg-cyber-dark/80 px-4 py-2 text-cyber-cyan hover:bg-cyber-cyan/10"
-                    >
-                      SUBMIT
-                    </button>
-                  </div>
-                  <p className="mt-2 text-cyber-gray/60">
-                    Attempts: {attempts}/{maxAttempts} | Security Level: {securityLevel}%
-                  </p>
-                </div>
-              </div>
-              
-              <div className="text-sm text-cyber-gray/80">
-                <p>* WARNING: Each incorrect attempt increases security level.</p>
-                <p>* At maximum security level, the system will initiate lockdown.</p>
-                <p>* Time limit enforced by corporate countermeasures.</p>
-              </div>
-            </div>
-            
-            <div className="glass-card p-6">
-              <h2 className="text-xl text-cyber-cyan font-display mb-4">MISSION DATA</h2>
-              
-              <div className="space-y-4">
-                <div className="cyber-border bg-cyber-dark/30 p-3">
-                  <h3 className="text-cyber-pink mb-1">OBJECTIVE:</h3>
-                  <p className="text-cyber-gray/90">Gain access to the secure terminal by entering the correct password.</p>
-                </div>
-                
-                <div className="cyber-border bg-cyber-dark/30 p-3">
-                  <h3 className="text-cyber-pink mb-1">STRATEGY:</h3>
-                  <ul className="list-disc list-inside text-cyber-gray/90 space-y-1">
-                    <li>Analyze the possible passwords for patterns.</li>
-                    <li>Use elimination to identify the most likely candidate.</li>
-                    <li>Enter the password carefully to avoid security alerts.</li>
-                  </ul>
-                </div>
-                
-                <div className="cyber-border bg-cyber-dark/30 p-3">
-                  <h3 className="text-cyber-pink mb-1">DIFFICULTY:</h3>
-                  <p className="text-cyber-gray/90">{difficulty}: {maxAttempts} attempts allowed</p>
-                </div>
-              </div>
-            </div>
+          <div className="mt-8">
+            {getGameComponent(missionId, {
+              difficulty,
+              onSuccess: handleGameSuccess,
+              onFailure: handleGameFailure,
+              timeLeft,
+              timeLimit,
+              onSecurityLevelChange: handleSecurityLevelChange
+            })}
           </div>
         )}
         
@@ -335,9 +255,6 @@ const HackingGame: React.FC<GameProps> = ({
             <h2 className="text-3xl font-display text-cyber-red mb-4">MISSION FAILED</h2>
             <p className="text-xl text-cyber-gray/90 mb-6">
               Security protocols detected your intrusion attempt.
-            </p>
-            <p className="text-lg text-cyber-red mb-8">
-              Correct password was: {correctPassword}
             </p>
             <button
               onClick={() => onComplete(false, timeLeft)}

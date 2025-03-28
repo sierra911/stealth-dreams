@@ -1,14 +1,11 @@
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
-// Hook for revealing elements on scroll
-export const useReveal = (threshold = 0.1) => {
+export const useReveal = () => {
   const [revealed, setRevealed] = useState(false);
-  const [ref, setRef] = useState<HTMLElement | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!ref) return;
-    
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -16,72 +13,52 @@ export const useReveal = (threshold = 0.1) => {
           observer.disconnect();
         }
       },
-      { threshold }
+      {
+        root: null,
+        rootMargin: '0px',
+        threshold: 0.1
+      }
     );
-    
-    observer.observe(ref);
-    
-    return () => {
-      observer.disconnect();
-    };
-  }, [ref, threshold]);
 
-  return { ref: setRef, revealed };
+    if (ref.current) {
+      observer.observe(ref.current);
+    }
+
+    return () => {
+      if (ref.current) {
+        observer.unobserve(ref.current);
+      }
+    };
+  }, []);
+
+  return { ref, revealed };
 };
 
-// Hook for typing effect
-export const useTypewriter = (text: string, speed = 50) => {
+export const useTypewriter = (text: string, speed: number = 50) => {
   const [displayText, setDisplayText] = useState('');
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
 
   useEffect(() => {
-    if (currentIndex < text.length) {
-      const timeout = setTimeout(() => {
-        setDisplayText(prevText => prevText + text[currentIndex]);
-        setCurrentIndex(prevIndex => prevIndex + 1);
-      }, speed);
-      
-      return () => clearTimeout(timeout);
-    } else {
+    // Reset state when text changes
+    setDisplayText('');
+    setCurrentIndex(0);
+    setIsComplete(false);
+  }, [text]);
+
+  useEffect(() => {
+    if (currentIndex >= text.length) {
       setIsComplete(true);
+      return;
     }
+
+    const timer = setTimeout(() => {
+      setDisplayText(prev => prev + text[currentIndex]);
+      setCurrentIndex(prev => prev + 1);
+    }, speed);
+
+    return () => clearTimeout(timer);
   }, [currentIndex, text, speed]);
 
   return { displayText, isComplete };
-};
-
-// Hook for glitch effect
-export const useGlitch = (interval = 2000, duration = 200) => {
-  const [isGlitching, setIsGlitching] = useState(false);
-  
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      setIsGlitching(true);
-      
-      const timeout = setTimeout(() => {
-        setIsGlitching(false);
-      }, duration);
-      
-      return () => clearTimeout(timeout);
-    }, interval);
-    
-    return () => clearInterval(intervalId);
-  }, [interval, duration]);
-  
-  return isGlitching;
-};
-
-// Function to add random glitch class
-export const getRandomGlitchClass = () => {
-  const classes = [
-    'translate-x-[1px] translate-y-[1px]',
-    'translate-x-[-1px] translate-y-[1px]',
-    'translate-x-[1px] translate-y-[-1px]',
-    'translate-x-[-1px] translate-y-[-1px]',
-    'skew-x-[0.5deg]',
-    'skew-y-[0.5deg]'
-  ];
-  
-  return classes[Math.floor(Math.random() * classes.length)];
 };
