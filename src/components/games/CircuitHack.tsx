@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Cpu, Plus, X, ArrowRight, Divide, CornerDownRight } from 'lucide-react';
 
@@ -22,6 +21,7 @@ interface LogicGate {
   output: boolean;
   placed: boolean;
   corrupted: boolean;
+  connectedTo?: string[];
 }
 
 interface CircuitNode {
@@ -60,7 +60,6 @@ const CircuitHack: React.FC<CircuitHackProps> = ({
   
   const config = difficultyConfig[difficulty as keyof typeof difficultyConfig] || difficultyConfig.Medium;
 
-  // Initialize logic gates
   const initializeGates = () => {
     const gateTypes: LogicGateType[] = ['AND', 'OR', 'XOR', 'NOT', 'BUFFER'];
     const newGates: LogicGate[] = [];
@@ -77,18 +76,17 @@ const CircuitHack: React.FC<CircuitHackProps> = ({
         inputs: [],
         output: false,
         placed: false,
-        corrupted: isCorrupted
+        corrupted: isCorrupted,
+        connectedTo: []
       });
     }
     
     setGates(newGates);
   };
   
-  // Initialize circuit nodes
   const initializeCircuit = () => {
     const newNodes: CircuitNode[] = [];
     
-    // Create input nodes
     for (let i = 0; i < 3; i++) {
       newNodes.push({
         id: `input-${i}`,
@@ -101,7 +99,6 @@ const CircuitHack: React.FC<CircuitHackProps> = ({
       });
     }
     
-    // Create output nodes
     for (let i = 0; i < 2; i++) {
       newNodes.push({
         id: `output-${i}`,
@@ -116,35 +113,28 @@ const CircuitHack: React.FC<CircuitHackProps> = ({
     
     setNodes(newNodes);
     
-    // Set target output
     const target = [Math.random() > 0.5, Math.random() > 0.5];
     setTargetOutput(target);
   };
   
-  // Initialize the game
   useEffect(() => {
     initializeGates();
     initializeCircuit();
   }, [difficulty]);
   
-  // Evaluate circuit
   const evaluateCircuit = () => {
-    // Start with input nodes
     const inputNodes = nodes.filter(node => node.isInput);
     const outputNodes = nodes.filter(node => node.isOutput);
     const circuitValues = new Map<string, boolean>();
     
-    // Set input values
     inputNodes.forEach(node => {
       circuitValues.set(node.id, node.value);
     });
     
-    // Process placed gates in order
     placedGates.forEach(gate => {
       const gateInputs = gate.inputs.map(inputId => circuitValues.get(inputId) || false);
       let gateOutput = false;
       
-      // Process gate logic
       switch (gate.type) {
         case 'AND':
           gateOutput = gateInputs.every(v => v);
@@ -163,7 +153,6 @@ const CircuitHack: React.FC<CircuitHackProps> = ({
           break;
       }
       
-      // If gate is corrupted, invert its output
       if (gate.corrupted) {
         gateOutput = !gateOutput;
       }
@@ -171,13 +160,11 @@ const CircuitHack: React.FC<CircuitHackProps> = ({
       circuitValues.set(gate.id, gateOutput);
     });
     
-    // Process output nodes
     const newOutputs: boolean[] = [];
     
     outputNodes.forEach(node => {
       let outputValue = false;
       
-      // Check what's connected to this output
       for (const [id, value] of circuitValues.entries()) {
         const connectedGate = placedGates.find(g => g.id === id);
         const connectedNode = nodes.find(n => n.id === id);
@@ -194,21 +181,18 @@ const CircuitHack: React.FC<CircuitHackProps> = ({
     
     setCurrentOutput(newOutputs);
     
-    // Check if we've achieved the target output
     if (newOutputs.every((val, i) => val === targetOutput[i]) && newOutputs.length > 0) {
       setMessage("CIRCUIT COMPLETE - SYSTEM BACKDOOR INSTALLED");
       setTimeout(() => onSuccess(), 1500);
     }
   };
   
-  // When placed gates change, evaluate the circuit
   useEffect(() => {
     if (placedGates.length > 0) {
       evaluateCircuit();
     }
   }, [placedGates]);
   
-  // Handle gate selection
   const handleGateSelect = (gate: LogicGate) => {
     if (gate.placed) return;
     
@@ -217,11 +201,9 @@ const CircuitHack: React.FC<CircuitHackProps> = ({
     setTimeout(() => setMessage(null), 1500);
   };
   
-  // Handle placement of a gate on the grid
   const handlePlaceGate = (x: number, y: number) => {
     if (!selectedGate) return;
     
-    // Check if there's already a gate at this position
     const existingGate = placedGates.find(g => Math.abs(g.x - x) < 10 && Math.abs(g.y - y) < 10);
     if (existingGate) {
       setMessage("Cannot place gate here - space occupied");
@@ -229,36 +211,29 @@ const CircuitHack: React.FC<CircuitHackProps> = ({
       return;
     }
     
-    // Place the gate
     const newGate = { ...selectedGate, x, y, placed: true };
     setPlacedGates([...placedGates, newGate]);
     
-    // Remove from available gates
     setGates(gates.filter(g => g.id !== selectedGate.id));
     setSelectedGate(null);
     
-    // Increase security slightly
     const newSecurityLevel = Math.min(securityLevel + 5, 100);
     setSecurityLevel(newSecurityLevel);
     onSecurityLevelChange(100 - newSecurityLevel);
   };
   
-  // Handle connecting nodes or gates
   const handleConnect = (fromId: string, toId: string) => {
-    // Check if this is a valid connection
     const fromNode = nodes.find(n => n.id === fromId);
     const toNode = nodes.find(n => n.id === toId);
     const fromGate = placedGates.find(g => g.id === fromId);
     const toGate = placedGates.find(g => g.id === toId);
     
-    // Don't allow connecting to input nodes or from output nodes
     if ((toNode && toNode.isInput) || (fromNode && fromNode.isOutput)) {
       setMessage("Invalid connection direction");
       setTimeout(() => setMessage(null), 1500);
       return;
     }
     
-    // Update connections
     if (fromNode) {
       setNodes(nodes.map(n => 
         n.id === fromId 
@@ -284,7 +259,6 @@ const CircuitHack: React.FC<CircuitHackProps> = ({
     evaluateCircuit();
   };
   
-  // Render gate icon based on type
   const renderGateIcon = (type: LogicGateType) => {
     switch (type) {
       case 'AND':
@@ -314,7 +288,6 @@ const CircuitHack: React.FC<CircuitHackProps> = ({
             </p>
           </div>
           
-          {/* Logic Gate Palette */}
           <div className="mb-4">
             <p className="text-cyber-cyan mb-2">AVAILABLE GATES:</p>
             <div className="flex flex-wrap gap-2 mb-4">
@@ -340,9 +313,7 @@ const CircuitHack: React.FC<CircuitHackProps> = ({
             </div>
           </div>
           
-          {/* Circuit Board */}
           <div className="relative w-full border border-cyber-gray/30 aspect-video mb-4 bg-cyber-dark/20">
-            {/* Input/Output Nodes */}
             {nodes.map((node, index) => (
               <div
                 key={index}
@@ -362,7 +333,6 @@ const CircuitHack: React.FC<CircuitHackProps> = ({
               </div>
             ))}
             
-            {/* Placed Gates */}
             {placedGates.map((gate, index) => (
               <div
                 key={index}
@@ -381,7 +351,6 @@ const CircuitHack: React.FC<CircuitHackProps> = ({
               </div>
             ))}
             
-            {/* Target Area */}
             <div 
               className="absolute cyber-border bg-cyber-dark/20 border-dashed"
               style={{
@@ -408,7 +377,6 @@ const CircuitHack: React.FC<CircuitHackProps> = ({
             </div>
           </div>
           
-          {/* Output Display */}
           <div className="cyber-border p-2 mb-4">
             <div className="flex justify-between mb-2">
               <span className="text-cyber-gray/80">TARGET OUTPUT:</span>

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Shield, Cpu, Database, Wifi } from 'lucide-react';
 import { useReveal } from '../utils/animations';
@@ -86,22 +85,21 @@ const MissionSelect: React.FC = () => {
   const handleLaunchMission = () => {
     if (selectedMission) {
       if (selectedMission.gameType === 'blueprint') {
-        // Only pass serializable data, not React elements
-        navigate('/game/blueprint-extraction', { 
-          state: { 
-            missionId: selectedMission.id,
-            missionTitle: selectedMission.title,
-            missionCompany: selectedMission.company,
+        const missionData = {
+          mission: {
+            id: selectedMission.id,
+            title: selectedMission.title,
+            company: selectedMission.company,
             difficulty: selectedMission.difficulty,
-            timeLimit: selectedMission.timeLimit,
-            rewards: selectedMission.rewards
+            rewards: selectedMission.rewards,
+            timeLimit: selectedMission.timeLimit
           }
-        });
+        };
+        navigate('/game/blueprint-extraction', { state: missionData });
       } else if (selectedMission.gameType === 'terminal' || 
                 selectedMission.gameType === 'terminal-secure' || 
                 selectedMission.gameType === 'system-backdoor' || 
                 selectedMission.gameType === 'surveillance') {
-        // For all other game types, use the in-page game component
         setGameState('playing');
       }
     }
