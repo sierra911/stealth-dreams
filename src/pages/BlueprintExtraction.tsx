@@ -26,7 +26,7 @@ interface MissionState {
 const GRID_SIZE = 15;
 const CELL_SIZE = 1;
 
-const BlueprintExtraction = () => {
+const BlueprintExtraction: React.FC = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
@@ -38,6 +38,7 @@ const BlueprintExtraction = () => {
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const meshesRef = useRef<THREE.Mesh[]>([]);
   
   // Game state
   const [gameStarted, setGameStarted] = useState(false);
@@ -65,24 +66,45 @@ const BlueprintExtraction = () => {
     // Generate maze with walls, player, guards, blueprint, and exit
     generateMaze();
     
-    // Initialize the 3D scene
-    initializeScene();
-    
-    toast({
-      title: "MISSION BRIEFING",
-      description: `Infiltrate ${mission.company}'s network. Find the blueprint and exit without being detected.`,
-      className: "bg-cyber-dark border border-cyber-cyan/30 text-cyber-cyan"
-    });
-    
-    // Cleanup function
+    // Cleanup function for previous scene if it exists
     return () => {
       if (rendererRef.current && mountRef.current) {
         window.removeEventListener('resize', handleResize);
-        mountRef.current.removeChild(rendererRef.current.domElement);
+        if (mountRef.current.contains(rendererRef.current.domElement)) {
+          mountRef.current.removeChild(rendererRef.current.domElement);
+        }
         rendererRef.current.dispose();
       }
+      
+      // Clear all meshes
+      meshesRef.current.forEach(mesh => {
+        if (mesh.geometry) mesh.geometry.dispose();
+        if (mesh.material) {
+          if (Array.isArray(mesh.material)) {
+            mesh.material.forEach(material => material.dispose());
+          } else {
+            mesh.material.dispose();
+          }
+        }
+        if (mesh.parent) mesh.parent.remove(mesh);
+      });
+      meshesRef.current = [];
     };
   }, []);
+  
+  // Initialize 3D scene when maze is created
+  useEffect(() => {
+    if (maze.length > 0 && mountRef.current) {
+      // Initialize the 3D scene
+      initializeScene();
+      
+      toast({
+        title: "MISSION BRIEFING",
+        description: `Infiltrate ${mission?.company}'s network. Find the blueprint and exit without being detected.`,
+        className: "bg-cyber-dark border border-cyber-cyan/30 text-cyber-cyan"
+      });
+    }
+  }, [maze]);
   
   // Handle game timer
   useEffect(() => {
@@ -141,6 +163,9 @@ const BlueprintExtraction = () => {
       
       // Update maze with new guard positions
       updateMazeWithGuards();
+      
+      // Update 3D visualization
+      updateScene();
     }, 1000);
     
     return () => clearInterval(guardInterval);
@@ -306,6 +331,42 @@ const BlueprintExtraction = () => {
     directionalLight.position.set(5, 5, 5);
     scene.add(directionalLight);
     
+    // Render the maze
+    renderMaze();
+    
+    // Animation loop
+    const animate = () => {
+      if (sceneRef.current && cameraRef.current && rendererRef.current) {
+        rendererRef.current.render(sceneRef.current, cameraRef.current);
+      }
+      
+      requestAnimationFrame(animate);
+    };
+    
+    animate();
+    
+    // Handle window resize
+    window.addEventListener('resize', handleResize);
+  };
+  
+  // Render the maze in the 3D scene
+  const renderMaze = () => {
+    if (!sceneRef.current) return;
+    
+    // Clear existing meshes
+    meshesRef.current.forEach(mesh => {
+      if (mesh.parent) mesh.parent.remove(mesh);
+      if (mesh.geometry) mesh.geometry.dispose();
+      if (mesh.material) {
+        if (Array.isArray(mesh.material)) {
+          mesh.material.forEach(material => material.dispose());
+        } else {
+          mesh.material.dispose();
+        }
+      }
+    });
+    meshesRef.current = [];
+    
     // Create materials for different cell types
     const materials = {
       wall: new THREE.MeshPhongMaterial({ color: 0x1F2833, wireframe: false }),
@@ -317,7 +378,7 @@ const BlueprintExtraction = () => {
       lock: new THREE.MeshPhongMaterial({ color: 0xFFA500, wireframe: false })
     };
     
-    // Render the maze
+    // Render each cell in the maze
     maze.forEach(cell => {
       if (cell.type !== 'empty') {
         let geometry;
@@ -366,23 +427,17 @@ const BlueprintExtraction = () => {
           mesh.position.y = 0.05;
         }
         
-        scene.add(mesh);
+        sceneRef.current.add(mesh);
+        meshesRef.current.push(mesh);
       }
     });
-    
-    // Animation loop
-    const animate = () => {
-      if (sceneRef.current && cameraRef.current && rendererRef.current) {
-        rendererRef.current.render(sceneRef.current, cameraRef.current);
-      }
-      
-      requestAnimationFrame(animate);
-    };
-    
-    animate();
-    
-    // Handle window resize
-    window.addEventListener('resize', handleResize);
+  };
+  
+  // Update the 3D scene based on the current maze state
+  const updateScene = () => {
+    if (sceneRef.current) {
+      renderMaze();
+    }
   };
   
   // Handle window resize
@@ -491,6 +546,9 @@ const BlueprintExtraction = () => {
     
     // Update player position state
     setPlayerPosition({ x: newX, y: newY });
+    
+    // Update the 3D scene
+    updateScene();
   };
   
   // Format time as MM:SS
