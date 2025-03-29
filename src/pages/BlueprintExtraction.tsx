@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import * as THREE from 'three';
 import { createGrid, findPath } from '../utils/pathfinding';
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Key, FileText, Clock } from 'lucide-react';
+import { ArrowLeft, Key, FileText, Clock, AlertTriangle } from 'lucide-react';
 
 interface MazeCell {
   x: number;
@@ -39,6 +39,7 @@ const BlueprintExtraction: React.FC = () => {
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const meshesRef = useRef<THREE.Mesh[]>([]);
+  const animationFrameId = useRef<number | null>(null);
   
   // Game state
   const [gameStarted, setGameStarted] = useState(false);
@@ -50,6 +51,7 @@ const BlueprintExtraction: React.FC = () => {
   const [maze, setMaze] = useState<MazeCell[]>([]);
   const [playerPosition, setPlayerPosition] = useState({ x: 1, y: 1 });
   const [guardPositions, setGuardPositions] = useState<{x: number, y: number, patrolPath: {x: number, y: number}[], currentPathIndex: number}[]>([]);
+  const [webGLError, setWebGLError] = useState(false);
   
   // Initialize game
   useEffect(() => {
@@ -63,48 +65,55 @@ const BlueprintExtraction: React.FC = () => {
       return;
     }
 
+    // Check WebGL availability
+    if (!THREE.WEBGL.isWebGLAvailable()) {
+      setWebGLError(true);
+      toast({
+        title: "WebGL Not Available",
+        description: "Your device doesn't support 3D graphics. Using simplified view.",
+        variant: "destructive"
+      });
+    }
+
     // Generate maze with walls, player, guards, blueprint, and exit
     generateMaze();
-    
+
     // Cleanup function for previous scene if it exists
     return () => {
-      if (rendererRef.current && mountRef.current) {
-        window.removeEventListener('resize', handleResize);
-        if (mountRef.current.contains(rendererRef.current.domElement)) {
-          mountRef.current.removeChild(rendererRef.current.domElement);
-        }
-        rendererRef.current.dispose();
-      }
-      
-      // Clear all meshes
-      meshesRef.current.forEach(mesh => {
-        if (mesh.geometry) mesh.geometry.dispose();
-        if (mesh.material) {
-          if (Array.isArray(mesh.material)) {
-            mesh.material.forEach(material => material.dispose());
-          } else {
-            mesh.material.dispose();
-          }
-        }
-        if (mesh.parent) mesh.parent.remove(mesh);
-      });
-      meshesRef.current = [];
+      cleanupScene();
     };
   }, []);
   
   // Initialize 3D scene when maze is created
   useEffect(() => {
-    if (maze.length > 0 && mountRef.current) {
-      // Initialize the 3D scene
-      initializeScene();
-      
+    if (maze.length > 0 && mountRef.current && !webGLError) {
+      try {
+        // Initialize the 3D scene
+        initializeScene();
+        
+        toast({
+          title: "MISSION BRIEFING",
+          description: `Infiltrate ${mission?.company}'s network. Find the blueprint and exit without being detected.`,
+          className: "bg-cyber-dark border border-cyber-cyan/30 text-cyber-cyan"
+        });
+      } catch (error) {
+        console.error("Failed to initialize 3D scene:", error);
+        setWebGLError(true);
+        toast({
+          title: "WebGL Error",
+          description: "Couldn't initialize 3D view. Using simplified view.",
+          variant: "destructive"
+        });
+      }
+    } else if (maze.length > 0 && webGLError) {
+      // If WebGL is not available, still show the mission briefing
       toast({
         title: "MISSION BRIEFING",
         description: `Infiltrate ${mission?.company}'s network. Find the blueprint and exit without being detected.`,
         className: "bg-cyber-dark border border-cyber-cyan/30 text-cyber-cyan"
       });
     }
-  }, [maze]);
+  }, [maze, webGLError]);
   
   // Handle game timer
   useEffect(() => {
@@ -165,11 +174,44 @@ const BlueprintExtraction: React.FC = () => {
       updateMazeWithGuards();
       
       // Update 3D visualization
-      updateScene();
+      if (!webGLError) {
+        updateScene();
+      }
     }, 1000);
     
     return () => clearInterval(guardInterval);
   }, [gameStarted, gameOver, playerPosition]);
+  
+  // Cleanup the 3D scene
+  const cleanupScene = () => {
+    if (animationFrameId.current) {
+      window.cancelAnimationFrame(animationFrameId.current);
+      animationFrameId.current = null;
+    }
+    
+    if (rendererRef.current && mountRef.current) {
+      window.removeEventListener('resize', handleResize);
+      if (mountRef.current.contains(rendererRef.current.domElement)) {
+        mountRef.current.removeChild(rendererRef.current.domElement);
+      }
+      rendererRef.current.dispose();
+      rendererRef.current = null;
+    }
+    
+    // Clear all meshes
+    meshesRef.current.forEach(mesh => {
+      if (mesh.geometry) mesh.geometry.dispose();
+      if (mesh.material) {
+        if (Array.isArray(mesh.material)) {
+          mesh.material.forEach(material => material.dispose());
+        } else {
+          mesh.material.dispose();
+        }
+      }
+      if (mesh.parent) mesh.parent.remove(mesh);
+    });
+    meshesRef.current = [];
+  };
   
   // Generate the initial maze
   const generateMaze = () => {
@@ -294,148 +336,170 @@ const BlueprintExtraction: React.FC = () => {
   
   // Initialize Three.js scene
   const initializeScene = () => {
-    if (!mountRef.current) return;
+    if (!mountRef.current || webGLError) return;
 
-    // Create scene
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x050A0F);
-    sceneRef.current = scene;
-    
-    // Create camera
-    const camera = new THREE.PerspectiveCamera(
-      75,
-      mountRef.current.clientWidth / mountRef.current.clientHeight,
-      0.1,
-      1000
-    );
-    camera.position.set(GRID_SIZE / 2, GRID_SIZE, GRID_SIZE / 2);
-    camera.lookAt(GRID_SIZE / 2, 0, GRID_SIZE / 2);
-    cameraRef.current = camera;
-    
-    // Create renderer
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(mountRef.current.clientWidth, mountRef.current.clientHeight);
-    mountRef.current.appendChild(renderer.domElement);
-    rendererRef.current = renderer;
-    
-    // Add grid helper
-    const gridHelper = new THREE.GridHelper(GRID_SIZE, GRID_SIZE, 0x66FCF1, 0x45A29E);
-    scene.add(gridHelper);
-    
-    // Add ambient light
-    const ambientLight = new THREE.AmbientLight(0x66FCF1, 0.5);
-    scene.add(ambientLight);
-    
-    // Add directional light
-    const directionalLight = new THREE.DirectionalLight(0x66FCF1, 1);
-    directionalLight.position.set(5, 5, 5);
-    scene.add(directionalLight);
-    
-    // Render the maze
-    renderMaze();
-    
-    // Animation loop
-    const animate = () => {
-      if (sceneRef.current && cameraRef.current && rendererRef.current) {
-        rendererRef.current.render(sceneRef.current, cameraRef.current);
-      }
+    try {
+      // Create scene
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x050A0F);
+      sceneRef.current = scene;
       
-      requestAnimationFrame(animate);
-    };
-    
-    animate();
-    
-    // Handle window resize
-    window.addEventListener('resize', handleResize);
+      // Create camera
+      const camera = new THREE.PerspectiveCamera(
+        75,
+        mountRef.current.clientWidth / mountRef.current.clientHeight,
+        0.1,
+        1000
+      );
+      camera.position.set(GRID_SIZE / 2, GRID_SIZE, GRID_SIZE / 2);
+      camera.lookAt(GRID_SIZE / 2, 0, GRID_SIZE / 2);
+      cameraRef.current = camera;
+      
+      // Create renderer with specific settings to improve compatibility
+      const renderer = new THREE.WebGLRenderer({ 
+        antialias: true,
+        powerPreference: 'default',
+        failIfMajorPerformanceCaveat: false
+      });
+      renderer.setSize(mountRef.current.clientWidth, mountRef.current.clientHeight);
+      mountRef.current.appendChild(renderer.domElement);
+      rendererRef.current = renderer;
+      
+      // Add grid helper
+      const gridHelper = new THREE.GridHelper(GRID_SIZE, GRID_SIZE, 0x66FCF1, 0x45A29E);
+      scene.add(gridHelper);
+      
+      // Add ambient light
+      const ambientLight = new THREE.AmbientLight(0x66FCF1, 0.5);
+      scene.add(ambientLight);
+      
+      // Add directional light
+      const directionalLight = new THREE.DirectionalLight(0x66FCF1, 1);
+      directionalLight.position.set(5, 5, 5);
+      scene.add(directionalLight);
+      
+      // Render the maze
+      renderMaze();
+      
+      // Animation loop
+      const animate = () => {
+        if (sceneRef.current && cameraRef.current && rendererRef.current) {
+          rendererRef.current.render(sceneRef.current, cameraRef.current);
+        }
+        
+        animationFrameId.current = requestAnimationFrame(animate);
+      };
+      
+      animate();
+      
+      // Handle window resize
+      window.addEventListener('resize', handleResize);
+    } catch (error) {
+      console.error("Error initializing 3D scene:", error);
+      setWebGLError(true);
+      cleanupScene(); // Clean up any partial resources
+      
+      toast({
+        title: "3D Rendering Failed",
+        description: "Falling back to simplified view.",
+        variant: "destructive"
+      });
+    }
   };
   
   // Render the maze in the 3D scene
   const renderMaze = () => {
-    if (!sceneRef.current) return;
+    if (!sceneRef.current || webGLError) return;
     
-    // Clear existing meshes
-    meshesRef.current.forEach(mesh => {
-      if (mesh.parent) mesh.parent.remove(mesh);
-      if (mesh.geometry) mesh.geometry.dispose();
-      if (mesh.material) {
-        if (Array.isArray(mesh.material)) {
-          mesh.material.forEach(material => material.dispose());
-        } else {
-          mesh.material.dispose();
+    try {
+      // Clear existing meshes
+      meshesRef.current.forEach(mesh => {
+        if (mesh.parent) mesh.parent.remove(mesh);
+        if (mesh.geometry) mesh.geometry.dispose();
+        if (mesh.material) {
+          if (Array.isArray(mesh.material)) {
+            mesh.material.forEach(material => material.dispose());
+          } else {
+            mesh.material.dispose();
+          }
         }
-      }
-    });
-    meshesRef.current = [];
-    
-    // Create materials for different cell types
-    const materials = {
-      wall: new THREE.MeshPhongMaterial({ color: 0x1F2833, wireframe: false }),
-      player: new THREE.MeshPhongMaterial({ color: 0x66FCF1, wireframe: false }),
-      guard: new THREE.MeshPhongMaterial({ color: 0xFF0000, wireframe: false }),
-      blueprint: new THREE.MeshPhongMaterial({ color: 0xFFFF00, wireframe: false }),
-      exit: new THREE.MeshPhongMaterial({ color: 0x00FF00, wireframe: false }),
-      key: new THREE.MeshPhongMaterial({ color: 0xFF00FF, wireframe: false }),
-      lock: new THREE.MeshPhongMaterial({ color: 0xFFA500, wireframe: false })
-    };
-    
-    // Render each cell in the maze
-    maze.forEach(cell => {
-      if (cell.type !== 'empty') {
-        let geometry;
-        
-        // Different geometries for different types
-        switch (cell.type) {
-          case 'wall':
-            geometry = new THREE.BoxGeometry(CELL_SIZE, CELL_SIZE * 2, CELL_SIZE);
-            break;
-          case 'player':
-            geometry = new THREE.SphereGeometry(CELL_SIZE * 0.4, 16, 16);
-            break;
-          case 'guard':
-            geometry = new THREE.ConeGeometry(CELL_SIZE * 0.4, CELL_SIZE * 0.8, 8);
-            break;
-          case 'blueprint':
-            geometry = new THREE.BoxGeometry(CELL_SIZE * 0.5, CELL_SIZE * 0.1, CELL_SIZE * 0.5);
-            break;
-          case 'exit':
-            geometry = new THREE.CylinderGeometry(CELL_SIZE * 0.5, CELL_SIZE * 0.5, CELL_SIZE * 0.1, 16);
-            break;
-          case 'key':
-            geometry = new THREE.CylinderGeometry(CELL_SIZE * 0.2, CELL_SIZE * 0.2, CELL_SIZE * 0.6, 8);
-            break;
-          case 'lock':
-            geometry = new THREE.BoxGeometry(CELL_SIZE * 0.8, CELL_SIZE * 0.8, CELL_SIZE * 0.3);
-            break;
-          default:
-            geometry = new THREE.BoxGeometry(CELL_SIZE * 0.8, CELL_SIZE * 0.3, CELL_SIZE * 0.8);
+      });
+      meshesRef.current = [];
+      
+      // Create materials for different cell types
+      const materials = {
+        wall: new THREE.MeshPhongMaterial({ color: 0x1F2833, wireframe: false }),
+        player: new THREE.MeshPhongMaterial({ color: 0x66FCF1, wireframe: false }),
+        guard: new THREE.MeshPhongMaterial({ color: 0xFF0000, wireframe: false }),
+        blueprint: new THREE.MeshPhongMaterial({ color: 0xFFFF00, wireframe: false }),
+        exit: new THREE.MeshPhongMaterial({ color: 0x00FF00, wireframe: false }),
+        key: new THREE.MeshPhongMaterial({ color: 0xFF00FF, wireframe: false }),
+        lock: new THREE.MeshPhongMaterial({ color: 0xFFA500, wireframe: false })
+      };
+      
+      // Render each cell in the maze
+      maze.forEach(cell => {
+        if (cell.type !== 'empty') {
+          let geometry;
+          
+          // Different geometries for different types
+          switch (cell.type) {
+            case 'wall':
+              geometry = new THREE.BoxGeometry(CELL_SIZE, CELL_SIZE * 2, CELL_SIZE);
+              break;
+            case 'player':
+              geometry = new THREE.SphereGeometry(CELL_SIZE * 0.4, 16, 16);
+              break;
+            case 'guard':
+              geometry = new THREE.ConeGeometry(CELL_SIZE * 0.4, CELL_SIZE * 0.8, 8);
+              break;
+            case 'blueprint':
+              geometry = new THREE.BoxGeometry(CELL_SIZE * 0.5, CELL_SIZE * 0.1, CELL_SIZE * 0.5);
+              break;
+            case 'exit':
+              geometry = new THREE.CylinderGeometry(CELL_SIZE * 0.5, CELL_SIZE * 0.5, CELL_SIZE * 0.1, 16);
+              break;
+            case 'key':
+              geometry = new THREE.CylinderGeometry(CELL_SIZE * 0.2, CELL_SIZE * 0.2, CELL_SIZE * 0.6, 8);
+              break;
+            case 'lock':
+              geometry = new THREE.BoxGeometry(CELL_SIZE * 0.8, CELL_SIZE * 0.8, CELL_SIZE * 0.3);
+              break;
+            default:
+              geometry = new THREE.BoxGeometry(CELL_SIZE * 0.8, CELL_SIZE * 0.3, CELL_SIZE * 0.8);
+          }
+          
+          const mesh = new THREE.Mesh(geometry, materials[cell.type as keyof typeof materials]);
+          mesh.position.set(cell.x, 0, cell.y);
+          
+          // Special positioning for certain types
+          if (cell.type === 'guard') {
+            mesh.position.y = CELL_SIZE * 0.4;
+          } else if (cell.type === 'player') {
+            mesh.position.y = CELL_SIZE * 0.4;
+          } else if (cell.type === 'key' || cell.type === 'blueprint') {
+            mesh.position.y = CELL_SIZE * 0.3;
+            mesh.rotation.y = Math.PI / 4;
+          } else if (cell.type === 'wall') {
+            mesh.position.y = CELL_SIZE;
+          } else if (cell.type === 'exit') {
+            mesh.position.y = 0.05;
+          }
+          
+          sceneRef.current.add(mesh);
+          meshesRef.current.push(mesh);
         }
-        
-        const mesh = new THREE.Mesh(geometry, materials[cell.type as keyof typeof materials]);
-        mesh.position.set(cell.x, 0, cell.y);
-        
-        // Special positioning for certain types
-        if (cell.type === 'guard') {
-          mesh.position.y = CELL_SIZE * 0.4;
-        } else if (cell.type === 'player') {
-          mesh.position.y = CELL_SIZE * 0.4;
-        } else if (cell.type === 'key' || cell.type === 'blueprint') {
-          mesh.position.y = CELL_SIZE * 0.3;
-          mesh.rotation.y = Math.PI / 4;
-        } else if (cell.type === 'wall') {
-          mesh.position.y = CELL_SIZE;
-        } else if (cell.type === 'exit') {
-          mesh.position.y = 0.05;
-        }
-        
-        sceneRef.current.add(mesh);
-        meshesRef.current.push(mesh);
-      }
-    });
+      });
+    } catch (error) {
+      console.error("Error rendering maze:", error);
+      setWebGLError(true);
+      cleanupScene();
+    }
   };
   
   // Update the 3D scene based on the current maze state
   const updateScene = () => {
-    if (sceneRef.current) {
+    if (sceneRef.current && !webGLError) {
       renderMaze();
     }
   };
@@ -548,7 +612,9 @@ const BlueprintExtraction: React.FC = () => {
     setPlayerPosition({ x: newX, y: newY });
     
     // Update the 3D scene
-    updateScene();
+    if (!webGLError) {
+      updateScene();
+    }
   };
   
   // Format time as MM:SS
@@ -582,6 +648,47 @@ const BlueprintExtraction: React.FC = () => {
         timeLeft 
       } 
     });
+  };
+
+  // Render a 2D representation of the maze for fallback
+  const renderMaze2D = () => {
+    const mazeMap = Array(GRID_SIZE).fill(0).map(() => Array(GRID_SIZE).fill(null));
+    
+    // Fill the map with cell types
+    maze.forEach(cell => {
+      mazeMap[cell.y][cell.x] = cell.type;
+    });
+
+    return (
+      <div className="grid gap-px bg-cyber-dark/50 p-1">
+        {mazeMap.map((row, y) => (
+          <div key={y} className="flex gap-px">
+            {row.map((cellType, x) => (
+              <div 
+                key={`${x}-${y}`} 
+                className={`w-5 h-5 flex items-center justify-center text-xs ${
+                  cellType === 'wall' ? 'bg-cyber-dark' :
+                  cellType === 'player' ? 'bg-cyber-cyan' :
+                  cellType === 'guard' ? 'bg-red-500' :
+                  cellType === 'blueprint' ? 'bg-yellow-400' :
+                  cellType === 'exit' ? 'bg-green-500' :
+                  cellType === 'key' ? 'bg-fuchsia-500' :
+                  cellType === 'lock' ? 'bg-orange-500' :
+                  'bg-cyber-black/50'
+                }`}
+              >
+                {cellType === 'player' && 'P'}
+                {cellType === 'guard' && 'G'}
+                {cellType === 'blueprint' && 'B'}
+                {cellType === 'exit' && 'E'}
+                {cellType === 'key' && 'K'}
+                {cellType === 'lock' && 'L'}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    );
   };
   
   return (
@@ -620,9 +727,28 @@ const BlueprintExtraction: React.FC = () => {
       
       {/* Game area */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 p-4 h-[calc(100vh-72px)]">
-        {/* 3D view */}
+        {/* 3D or 2D view */}
         <div className="lg:col-span-3 relative glass-card">
-          <div ref={mountRef} className="w-full h-full"></div>
+          {!webGLError ? (
+            <div ref={mountRef} className="w-full h-full"></div>
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center p-4">
+              <div className="flex items-center mb-4 text-cyber-red">
+                <AlertTriangle size={24} className="mr-2" />
+                <span className="text-xl">WebGL not available</span>
+              </div>
+              <p className="text-center mb-6 text-cyber-gray/80">
+                Your browser or device doesn't support 3D rendering.
+                Using simplified 2D view instead.
+              </p>
+              
+              {gameStarted && !gameOver && maze.length > 0 && (
+                <div className="cyber-border p-4 bg-cyber-dark/20">
+                  {renderMaze2D()}
+                </div>
+              )}
+            </div>
+          )}
           
           {!gameStarted && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-cyber-black/80">
