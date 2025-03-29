@@ -6,6 +6,19 @@ interface ThreeSceneProps {
   className?: string;
 }
 
+// Helper function to detect WebGL support
+const isWebGLAvailable = () => {
+  try {
+    const canvas = document.createElement('canvas');
+    return !!(
+      window.WebGLRenderingContext &&
+      (canvas.getContext('webgl') || canvas.getContext('experimental-webgl'))
+    );
+  } catch (e) {
+    return false;
+  }
+};
+
 const ThreeScene: React.FC<ThreeSceneProps> = ({ className }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -16,8 +29,8 @@ const ThreeScene: React.FC<ThreeSceneProps> = ({ className }) => {
   useEffect(() => {
     if (!mountRef.current) return;
 
-    // First check if WebGL is available
-    if (!THREE.WEBGL.isWebGLAvailable()) {
+    // First check if WebGL is available using our custom function
+    if (!isWebGLAvailable()) {
       console.error('WebGL is not available in this browser');
       setWebGLError(true);
       return;
