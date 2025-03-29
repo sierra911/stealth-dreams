@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import * as THREE from 'three';
@@ -25,6 +24,19 @@ interface MissionState {
 
 const GRID_SIZE = 15;
 const CELL_SIZE = 1;
+
+// Helper function to detect WebGL support
+const isWebGLAvailable = () => {
+  try {
+    const canvas = document.createElement('canvas');
+    return !!(
+      window.WebGLRenderingContext &&
+      (canvas.getContext('webgl') || canvas.getContext('experimental-webgl'))
+    );
+  } catch (e) {
+    return false;
+  }
+};
 
 const BlueprintExtraction: React.FC = () => {
   const { toast } = useToast();
@@ -66,7 +78,7 @@ const BlueprintExtraction: React.FC = () => {
     }
 
     // Check WebGL availability
-    if (!THREE.WEBGL.isWebGLAvailable()) {
+    if (!isWebGLAvailable()) {
       setWebGLError(true);
       toast({
         title: "WebGL Not Available",
