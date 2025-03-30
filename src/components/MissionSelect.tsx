@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Shield, Cpu, Database, Wifi } from 'lucide-react';
 import { useReveal } from '../utils/animations';
@@ -14,20 +15,20 @@ interface Mission {
   icon: React.ReactNode;
   company: string;
   timeLimit: number; // in seconds
-  gameType: 'terminal' | 'blueprint' | 'surveillance' | 'terminal-secure' | 'system-backdoor';
+  gameType: 'terminal' | 'data-heist' | 'surveillance' | 'terminal-secure' | 'system-backdoor';
 }
 
 const missions: Mission[] = [
   {
     id: 1,
-    title: "BLUEPRINT EXTRACTION",
-    description: "Infiltrate Arasaka's R&D network and extract new weapon blueprints without triggering security protocols.",
+    title: "DATA HEIST",
+    description: "Infiltrate Arasaka's R&D servers and extract classified research data without triggering security protocols.",
     difficulty: 'Medium',
     rewards: "5,000 EC + Rare Cyberware",
     icon: <Database className="w-10 h-10 text-cyber-cyan" />,
     company: "ARASAKA",
     timeLimit: 300,  // 5 minutes
-    gameType: 'blueprint'
+    gameType: 'data-heist'
   },
   {
     id: 2,
@@ -84,7 +85,7 @@ const MissionSelect: React.FC = () => {
   
   const handleLaunchMission = () => {
     if (selectedMission) {
-      if (selectedMission.gameType === 'blueprint') {
+      if (selectedMission.gameType === 'data-heist') {
         const missionData = {
           mission: {
             id: selectedMission.id,
@@ -95,7 +96,7 @@ const MissionSelect: React.FC = () => {
             timeLimit: selectedMission.timeLimit
           }
         };
-        navigate('/game/blueprint-extraction', { state: missionData });
+        navigate('/game/data-heist', { state: missionData });
       } else if (selectedMission.gameType === 'terminal' || 
                 selectedMission.gameType === 'terminal-secure' || 
                 selectedMission.gameType === 'system-backdoor' || 

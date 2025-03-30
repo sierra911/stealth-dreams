@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Terminal, Key } from 'lucide-react';
+import { Terminal, Key, Lightbulb, Scan } from 'lucide-react';
 
 interface TerminalHackProps {
   difficulty: string;
@@ -14,8 +14,8 @@ interface TerminalHackProps {
 const difficultyConfig = {
   'Easy': { passwordLength: 4, maxAttempts: 6, securityIncrease: 15 },
   'Medium': { passwordLength: 5, maxAttempts: 5, securityIncrease: 20 },
-  'Hard': { passwordLength: 6, maxAttempts: 4, securityIncrease: 25 },
-  'Expert': { passwordLength: 8, maxAttempts: 3, securityIncrease: 35 }
+  'Hard': { passwordLength: 5, maxAttempts: 4, securityIncrease: 25 },
+  'Expert': { passwordLength: 6, maxAttempts: 4, securityIncrease: 30 }
 };
 
 // Generate random password of specified length
@@ -72,7 +72,9 @@ const TerminalHack: React.FC<TerminalHackProps> = ({
   const [securityLevel, setSecurityLevel] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const [attemptHistory, setAttemptHistory] = useState<{password: string, correctChars: number, correctPositions: number[]}[]>([]);
-  const [hintRevealed, setHintRevealed] = useState(false);
+  const [hintsUsed, setHintsUsed] = useState(0);
+  const [correctPositionHints, setCorrectPositionHints] = useState<number[]>([]);
+  const [scanActive, setScanActive] = useState(false);
   
   const config = difficultyConfig[difficulty as keyof typeof difficultyConfig] || difficultyConfig.Medium;
   
@@ -91,10 +93,25 @@ const TerminalHack: React.FC<TerminalHackProps> = ({
   
   // Reveal a hint (one correct character position)
   const revealHint = () => {
-    if (hintRevealed) return;
+    if (hintsUsed >= Math.floor(correctPassword.length / 2)) {
+      setMessage("Maximum hints used");
+      setTimeout(() => setMessage(null), 2000);
+      return;
+    }
     
-    setHintRevealed(true);
-    const hintPosition = Math.floor(Math.random() * correctPassword.length);
+    // Find positions not already hinted
+    const unhintedPositions = Array.from({ length: correctPassword.length }, (_, i) => i)
+      .filter(pos => !correctPositionHints.includes(pos));
+    
+    if (unhintedPositions.length === 0) return;
+    
+    // Select a random unhinted position
+    const randomIndex = Math.floor(Math.random() * unhintedPositions.length);
+    const hintPosition = unhintedPositions[randomIndex];
+    
+    setHintsUsed(prev => prev + 1);
+    setCorrectPositionHints(prev => [...prev, hintPosition]);
+    
     setMessage(`HINT: Position ${hintPosition + 1} is "${correctPassword[hintPosition]}"`);
     
     // Small security penalty for using a hint
@@ -103,6 +120,22 @@ const TerminalHack: React.FC<TerminalHackProps> = ({
     onSecurityLevelChange(100 - newSecurityLevel);
     
     setTimeout(() => setMessage(null), 5000);
+  };
+  
+  // Quick scan to briefly reveal all correct positions
+  const activateScan = () => {
+    // Security penalty for scan
+    const newSecurityLevel = Math.min(securityLevel + 15, 100);
+    setSecurityLevel(newSecurityLevel);
+    onSecurityLevelChange(100 - newSecurityLevel);
+    
+    setScanActive(true);
+    setMessage("SCAN ACTIVE: Displaying correct positions for 3 seconds");
+    
+    setTimeout(() => {
+      setScanActive(false);
+      setMessage(null);
+    }, 3000);
   };
   
   // Handle password submission
@@ -151,6 +184,26 @@ const TerminalHack: React.FC<TerminalHackProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [userInput, handleSubmit]);
   
+  // Generate a character display that shows hints
+  const getCharacterDisplay = (char: string, index: number) => {
+    const isHinted = correctPositionHints.includes(index);
+    const isScanned = scanActive;
+    
+    if (isHinted || isScanned) {
+      return (
+        <span className="inline-block border-b-2 border-cyber-cyan text-cyber-cyan">
+          {char}
+        </span>
+      );
+    }
+    
+    return (
+      <span className="inline-block border-b-2 border-cyber-gray/30">
+        {char}
+      </span>
+    );
+  };
+  
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <div className="glass-card p-6">
@@ -174,7 +227,7 @@ const TerminalHack: React.FC<TerminalHackProps> = ({
                   className="cyber-border bg-cyber-dark/30 p-2 text-center cursor-pointer hover:bg-cyber-dark/50 transition-colors"
                   onClick={() => setUserInput(pass)}
                 >
-                  {pass}
+                  {pass.split('').map((char, charIndex) => getCharacterDisplay(char, charIndex))}
                 </div>
               ))}
             </div>
@@ -236,7 +289,7 @@ const TerminalHack: React.FC<TerminalHackProps> = ({
               <p className={`cyber-border inline-block px-3 py-1 ${
                 message.includes("ACCESS GRANTED") 
                   ? "text-cyber-cyan border-cyber-cyan bg-cyber-cyan/10" 
-                  : message.includes("HINT")
+                  : message.includes("HINT") || message.includes("SCAN")
                     ? "text-yellow-400 border-yellow-400 bg-yellow-400/10"
                     : "text-cyber-red border-cyber-red bg-cyber-red/10"
               }`}>
@@ -262,15 +315,28 @@ const TerminalHack: React.FC<TerminalHackProps> = ({
             ></div>
           </div>
           
-          {!hintRevealed && (
+          <div className="flex gap-2 mt-3">
             <button 
               onClick={revealHint}
-              className="mt-3 flex items-center gap-2 cyber-border bg-cyber-dark/50 px-3 py-1 text-cyber-cyan hover:bg-cyber-cyan/10 text-sm"
+              disabled={hintsUsed >= Math.floor(correctPassword.length / 2)}
+              className={`flex items-center gap-2 cyber-border px-3 py-1 text-sm ${
+                hintsUsed >= Math.floor(correctPassword.length / 2)
+                  ? 'bg-cyber-dark/30 text-cyber-gray/50 cursor-not-allowed'
+                  : 'bg-cyber-dark/50 text-cyber-cyan hover:bg-cyber-cyan/10'
+              }`}
             >
-              <Key size={14} />
-              <span>REVEAL PASSWORD HINT (+10% SECURITY)</span>
+              <Lightbulb size={14} />
+              <span>REVEAL HINT ({hintsUsed}/{Math.floor(correctPassword.length / 2)})</span>
             </button>
-          )}
+            
+            <button 
+              onClick={activateScan}
+              className="flex items-center gap-2 cyber-border bg-cyber-dark/50 px-3 py-1 text-yellow-400 hover:bg-yellow-400/10 text-sm"
+            >
+              <Scan size={14} />
+              <span>QUICK SCAN (+15% SECURITY)</span>
+            </button>
+          </div>
         </div>
       </div>
       
@@ -290,10 +356,40 @@ const TerminalHack: React.FC<TerminalHackProps> = ({
             <ul className="list-disc list-inside text-cyber-gray/90 space-y-1">
               <li>Each attempt will tell you how many characters are in the correct position</li>
               <li>Click on any password in the list to automatically enter it</li>
-              <li>You can use the hint button to reveal one correct character</li>
+              <li>Use the <span className="text-cyber-cyan">HINT</span> button to reveal a correct character position</li>
+              <li>Use the <span className="text-yellow-400">QUICK SCAN</span> to briefly see all correct positions</li>
               <li>You have {config.maxAttempts} attempts before the system locks down</li>
               <li>Each incorrect attempt raises the security level by {config.securityIncrease}%</li>
             </ul>
+          </div>
+          
+          <div className="cyber-border bg-cyber-dark/30 p-3">
+            <h3 className="text-cyber-pink mb-1">KEY INFORMATION:</h3>
+            <p className="text-cyber-gray/90 mb-2">
+              Characters highlighted in <span className="text-cyber-cyan">cyan</span> represent correct positions in the password.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="cyber-border p-2 bg-cyber-dark/50">
+                <p className="text-sm mb-1 text-cyber-cyan">Hint Example:</p>
+                <div className="font-mono">
+                  <span className="inline-block border-b-2 border-cyber-gray/30">A</span>
+                  <span className="inline-block border-b-2 border-cyber-cyan text-cyber-cyan">B</span>
+                  <span className="inline-block border-b-2 border-cyber-gray/30">C</span>
+                  <span className="inline-block border-b-2 border-cyber-gray/30">D</span>
+                </div>
+                <p className="text-xs mt-1 text-cyber-gray/70">Character 'B' in position 2 is correct</p>
+              </div>
+              <div className="cyber-border p-2 bg-cyber-dark/50">
+                <p className="text-sm mb-1 text-yellow-400">Scan Example:</p>
+                <div className="font-mono">
+                  <span className="inline-block border-b-2 border-cyber-cyan text-cyber-cyan">A</span>
+                  <span className="inline-block border-b-2 border-cyber-gray/30">B</span>
+                  <span className="inline-block border-b-2 border-cyber-cyan text-cyber-cyan">C</span>
+                  <span className="inline-block border-b-2 border-cyber-gray/30">D</span>
+                </div>
+                <p className="text-xs mt-1 text-cyber-gray/70">Characters in positions 1 & 3 are correct</p>
+              </div>
+            </div>
           </div>
           
           <div className="cyber-border bg-cyber-dark/30 p-3">
