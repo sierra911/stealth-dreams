@@ -71,6 +71,36 @@ const getGameComponent = (missionId: number, props: any) => {
   }
 };
 
+const getGameTips = (missionId: number) => {
+  switch (missionId) {
+    case 1: return [
+      "Use the HINT button to reveal correct memory addresses",
+      "The SCAN function will briefly highlight all correct addresses",
+      "Look for patterns in the memory grid",
+      "You only need to select the exact number of required addresses"
+    ];
+    case 2: return [
+      "Start from any node and build a connected path",
+      "Pink nodes are critical and must be activated",
+      "Plan your route to avoid potential firewall blocks",
+      "Each node must connect to an already active node"
+    ];
+    case 3: return [
+      "Each attempt shows how many characters are in the correct position",
+      "Click on a password in the list to automatically enter it",
+      "Use the HINT button to reveal one correct character",
+      "Process of elimination is key to solving the puzzle"
+    ];
+    case 4: return [
+      "Place logic gates to modify the input signals",
+      "Connect gates to create a circuit that matches the target output",
+      "Watch out for corrupted gates that invert their output",
+      "You can remove and replace gates if needed"
+    ];
+    default: return ["No tips available for this game type"];
+  }
+};
+
 const HackingGame: React.FC<GameProps> = ({ 
   missionId, 
   missionTitle, 
@@ -85,6 +115,7 @@ const HackingGame: React.FC<GameProps> = ({
   const [timeLeft, setTimeLeft] = useState(timeLimit);
   const [gameState, setGameState] = useState<'connecting'|'hacking'|'success'|'failed'>('connecting');
   const [securityLevel, setSecurityLevel] = useState(100);
+  const [showTips, setShowTips] = useState(true);
 
   // Setup game on start
   useEffect(() => {
@@ -163,6 +194,8 @@ const HackingGame: React.FC<GameProps> = ({
     setSecurityLevel(newLevel);
   }, []);
   
+  const tips = getGameTips(missionId);
+  
   return (
     <div className="min-h-screen bg-cyber-black font-cyber text-cyber-gray pb-20">
       {/* Top bar with mission info */}
@@ -214,16 +247,37 @@ const HackingGame: React.FC<GameProps> = ({
         )}
         
         {gameState === 'hacking' && (
-          <div className="mt-8">
-            {getGameComponent(missionId, {
-              difficulty,
-              onSuccess: handleGameSuccess,
-              onFailure: handleGameFailure,
-              timeLeft,
-              timeLimit,
-              onSecurityLevelChange: handleSecurityLevelChange
-            })}
-          </div>
+          <>
+            {showTips && (
+              <div className="mb-6 bg-cyber-dark/50 cyber-border p-4">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="text-cyber-cyan font-display">TACTICAL TIPS</h3>
+                  <button 
+                    onClick={() => setShowTips(false)}
+                    className="text-cyber-gray/60 hover:text-cyber-gray text-sm"
+                  >
+                    HIDE TIPS
+                  </button>
+                </div>
+                <ul className="list-disc list-inside text-cyber-gray/90 space-y-1 pl-2">
+                  {tips.map((tip, index) => (
+                    <li key={index} className="text-sm">{tip}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            
+            <div className="mt-4">
+              {getGameComponent(missionId, {
+                difficulty,
+                onSuccess: handleGameSuccess,
+                onFailure: handleGameFailure,
+                timeLeft,
+                timeLimit,
+                onSecurityLevelChange: handleSecurityLevelChange
+              })}
+            </div>
+          </>
         )}
         
         {gameState === 'success' && (

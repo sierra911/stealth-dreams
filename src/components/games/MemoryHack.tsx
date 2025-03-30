@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
-import { Database } from 'lucide-react';
+import { Database, AlertTriangle, FileText } from 'lucide-react';
 
 interface MemoryHackProps {
   difficulty: string;
@@ -16,13 +15,14 @@ interface MemoryCell {
   selected: boolean;
   correct: boolean;
   wrong: boolean;
+  hinted: boolean;
 }
 
 const difficultyConfig = {
-  'Easy': { requiredSelections: 4, securityIncrease: 15 },
-  'Medium': { requiredSelections: 4, securityIncrease: 25 },
-  'Hard': { requiredSelections: 4, securityIncrease: 35 },
-  'Expert': { requiredSelections: 6, securityIncrease: 50 }
+  'Easy': { requiredSelections: 3, securityIncrease: 15 },
+  'Medium': { requiredSelections: 3, securityIncrease: 20 },
+  'Hard': { requiredSelections: 4, securityIncrease: 30 },
+  'Expert': { requiredSelections: 5, securityIncrease: 40 }
 };
 
 const memoryCells = [
@@ -45,6 +45,8 @@ const MemoryHack: React.FC<MemoryHackProps> = ({
   const [securityLevel, setSecurityLevel] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const [correctSequence, setCorrectSequence] = useState<string[]>([]);
+  const [hintsUsed, setHintsUsed] = useState(0);
+  const [scanActive, setScanActive] = useState(false);
   
   const config = difficultyConfig[difficulty as keyof typeof difficultyConfig] || difficultyConfig.Medium;
   
@@ -56,13 +58,15 @@ const MemoryHack: React.FC<MemoryHackProps> = ({
       .slice(0, config.requiredSelections);
     
     setCorrectSequence(sequence);
+    console.log("Correct sequence:", sequence); // For debugging
     
     // Initialize cells
     const initialCells = memoryCells.map(value => ({
       value,
       selected: false,
       correct: false,
-      wrong: false
+      wrong: false,
+      hinted: false
     }));
     
     setCells(initialCells);
@@ -126,6 +130,84 @@ const MemoryHack: React.FC<MemoryHackProps> = ({
     }
   };
   
+  // Provide a hint by highlighting one correct cell
+  const provideHint = () => {
+    if (hintsUsed >= 2) {
+      setMessage("MAXIMUM HINTS USED");
+      setTimeout(() => setMessage(null), 1500);
+      return;
+    }
+    
+    const newCells = [...cells];
+    const unselectedCorrectCells = correctSequence
+      .map(value => ({ value, index: newCells.findIndex(cell => cell.value === value && !cell.selected && !cell.hinted) }))
+      .filter(item => item.index !== -1);
+    
+    if (unselectedCorrectCells.length === 0) {
+      setMessage("NO MORE HINTS AVAILABLE");
+      setTimeout(() => setMessage(null), 1500);
+      return;
+    }
+    
+    // Select a random correct cell to hint
+    const randomHint = unselectedCorrectCells[Math.floor(Math.random() * unselectedCorrectCells.length)];
+    newCells[randomHint.index].hinted = true;
+    
+    setCells(newCells);
+    setHintsUsed(prev => prev + 1);
+    
+    // Apply small security penalty for using a hint
+    const newSecurityLevel = Math.min(securityLevel + 10, 100);
+    setSecurityLevel(newSecurityLevel);
+    onSecurityLevelChange(100 - newSecurityLevel);
+    
+    setMessage("HINT PROVIDED: highlighted memory address is part of the correct sequence");
+    setTimeout(() => setMessage(null), 3000);
+  };
+  
+  // Run a memory scan to help identify correct cells
+  const runMemoryScan = () => {
+    if (scanActive) return;
+    
+    setScanActive(true);
+    setMessage("RUNNING MEMORY SCAN...");
+    
+    // Apply security penalty for running a scan
+    const newSecurityLevel = Math.min(securityLevel + 15, 100);
+    setSecurityLevel(newSecurityLevel);
+    onSecurityLevelChange(100 - newSecurityLevel);
+    
+    // After a delay, show a temporary highlight on all correct cells
+    setTimeout(() => {
+      const newCells = [...cells];
+      
+      // Temporarily mark all unselected correct cells
+      correctSequence.forEach(value => {
+        const index = newCells.findIndex(cell => cell.value === value && !cell.selected);
+        if (index !== -1) {
+          newCells[index].hinted = true;
+        }
+      });
+      
+      setCells(newCells);
+      setMessage("SCAN COMPLETE: Results displayed for 3 seconds");
+      
+      // After 3 seconds, remove the highlights (but keep user-selected hints)
+      setTimeout(() => {
+        const resetCells = [...newCells];
+        resetCells.forEach((cell, idx) => {
+          if (!cells[idx].hinted) { // Don't reset user-requested hints
+            resetCells[idx].hinted = false;
+          }
+        });
+        
+        setCells(resetCells);
+        setScanActive(false);
+        setMessage(null);
+      }, 3000);
+    }, 1500);
+  };
+  
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <div className="glass-card p-6">
@@ -136,7 +218,10 @@ const MemoryHack: React.FC<MemoryHackProps> = ({
             <Database className="w-12 h-12 text-cyber-cyan mx-auto mb-2" />
             <h3 className="text-cyber-cyan text-lg mb-1">Memory Address Selection</h3>
             <p className="text-cyber-gray/80">
-              Select any {config.requiredSelections} memory addresses to complete the access protocol
+              Select {config.requiredSelections} memory addresses to complete the access protocol
+            </p>
+            <p className="text-cyber-gray/60 text-xs mt-1">
+              Required: {selectedCount}/{config.requiredSelections} addresses
             </p>
           </div>
           
@@ -150,7 +235,9 @@ const MemoryHack: React.FC<MemoryHackProps> = ({
                     ? cell.correct 
                       ? 'bg-cyber-cyan/20 text-cyber-cyan border-cyber-cyan' 
                       : 'bg-cyber-red/20 text-cyber-red border-cyber-red'
-                    : 'bg-cyber-dark/30 hover:bg-cyber-dark/50 text-cyber-gray hover:text-cyber-cyan'
+                    : cell.hinted
+                      ? 'bg-yellow-400/20 text-yellow-400 border-yellow-400 pulse'
+                      : 'bg-cyber-dark/30 hover:bg-cyber-dark/50 text-cyber-gray hover:text-cyber-cyan'
                 }`}
                 disabled={cell.selected}
               >
@@ -159,14 +246,16 @@ const MemoryHack: React.FC<MemoryHackProps> = ({
             ))}
           </div>
           
-          <div className="text-center text-cyber-gray/80">
+          <div className="text-center text-cyber-gray/80 min-h-[40px]">
             {message && (
               <p className={`cyber-border inline-block px-3 py-1 ${
                 message.includes("ACCESS PROTOCOL") 
                   ? "text-cyber-cyan border-cyber-cyan bg-cyber-cyan/10" 
                   : message.includes("WARNING") || message.includes("SECURITY BREACH") 
                     ? "text-cyber-red border-cyber-red bg-cyber-red/10"
-                    : "text-cyber-gray"
+                    : message.includes("SCAN") || message.includes("HINT") 
+                      ? "text-yellow-400 border-yellow-400 bg-yellow-400/10"
+                      : "text-cyber-gray"
               }`}>
                 {message}
               </p>
@@ -181,13 +270,41 @@ const MemoryHack: React.FC<MemoryHackProps> = ({
               {securityLevel}%
             </span>
           </div>
-          <div className="h-2 bg-cyber-dark/50 rounded-full overflow-hidden">
+          <div className="h-2 bg-cyber-dark/50 rounded-full overflow-hidden mb-3">
             <div 
               className={`h-full transition-all duration-500 ${
                 securityLevel > 75 ? 'bg-cyber-red' : securityLevel > 50 ? 'bg-orange-400' : securityLevel > 25 ? 'bg-yellow-400' : 'bg-green-400'
               }`} 
               style={{ width: `${securityLevel}%` }}
             ></div>
+          </div>
+          
+          <div className="flex flex-wrap gap-2">
+            <button 
+              onClick={provideHint}
+              disabled={hintsUsed >= 2}
+              className={`flex items-center gap-2 cyber-border px-3 py-1 text-sm ${
+                hintsUsed >= 2 
+                  ? 'bg-cyber-dark/30 text-cyber-gray/50 cursor-not-allowed' 
+                  : 'bg-cyber-dark/50 text-cyber-cyan hover:bg-cyber-cyan/10'
+              }`}
+            >
+              <FileText size={14} />
+              <span>HINT ({2 - hintsUsed} LEFT) +10% SECURITY</span>
+            </button>
+            
+            <button 
+              onClick={runMemoryScan}
+              disabled={scanActive}
+              className={`flex items-center gap-2 cyber-border px-3 py-1 text-sm ${
+                scanActive 
+                  ? 'bg-cyber-dark/30 text-cyber-gray/50 cursor-not-allowed' 
+                  : 'bg-cyber-dark/50 text-cyber-cyan hover:bg-cyber-cyan/10'
+              }`}
+            >
+              <AlertTriangle size={14} />
+              <span>SCAN MEMORY +15% SECURITY</span>
+            </button>
           </div>
         </div>
       </div>
@@ -199,6 +316,15 @@ const MemoryHack: React.FC<MemoryHackProps> = ({
           <div className="cyber-border bg-cyber-dark/30 p-3">
             <h3 className="text-cyber-pink mb-1">OBJECTIVE:</h3>
             <p className="text-cyber-gray/90">Access core memory by selecting {config.requiredSelections} valid memory addresses. Choose carefully to avoid triggering security protocols.</p>
+          </div>
+          
+          <div className="cyber-border bg-cyber-dark/30 p-3">
+            <h3 className="text-cyber-pink mb-1">ASSISTANCE TOOLS:</h3>
+            <ul className="list-disc list-inside text-cyber-gray/90 space-y-1">
+              <li><span className="text-yellow-400">HINT</span>: Reveals one correct memory address (up to 2 hints)</li>
+              <li><span className="text-yellow-400">SCAN</span>: Briefly highlights all correct addresses for 3 seconds</li>
+              <li>Both tools increase security level but can help identify correct addresses</li>
+            </ul>
           </div>
           
           <div className="cyber-border bg-cyber-dark/30 p-3">

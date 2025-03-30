@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Terminal } from 'lucide-react';
+import { Terminal, Key } from 'lucide-react';
 
 interface TerminalHackProps {
   difficulty: string;
@@ -12,10 +12,10 @@ interface TerminalHackProps {
 }
 
 const difficultyConfig = {
-  'Easy': { passwordLength: 5, maxAttempts: 5, securityIncrease: 20 },
-  'Medium': { passwordLength: 6, maxAttempts: 4, securityIncrease: 25 },
-  'Hard': { passwordLength: 8, maxAttempts: 3, securityIncrease: 30 },
-  'Expert': { passwordLength: 10, maxAttempts: 3, securityIncrease: 40 }
+  'Easy': { passwordLength: 4, maxAttempts: 6, securityIncrease: 15 },
+  'Medium': { passwordLength: 5, maxAttempts: 5, securityIncrease: 20 },
+  'Hard': { passwordLength: 6, maxAttempts: 4, securityIncrease: 25 },
+  'Expert': { passwordLength: 8, maxAttempts: 3, securityIncrease: 35 }
 };
 
 // Generate random password of specified length
@@ -46,12 +46,15 @@ const generatePasswordList = (difficulty: string, correctPassword: string) => {
 // Compare password with correct password and return hint
 const getPasswordHint = (attempt: string, correct: string) => {
   let correctChars = 0;
+  const correctPositions = [];
+  
   for (let i = 0; i < attempt.length; i++) {
     if (i < correct.length && attempt[i] === correct[i]) {
       correctChars++;
+      correctPositions.push(i);
     }
   }
-  return correctChars;
+  return { correctChars, correctPositions };
 };
 
 const TerminalHack: React.FC<TerminalHackProps> = ({ 
@@ -68,7 +71,8 @@ const TerminalHack: React.FC<TerminalHackProps> = ({
   const [attempts, setAttempts] = useState(0);
   const [securityLevel, setSecurityLevel] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
-  const [attemptHistory, setAttemptHistory] = useState<{password: string, correctChars: number}[]>([]);
+  const [attemptHistory, setAttemptHistory] = useState<{password: string, correctChars: number, correctPositions: number[]}[]>([]);
+  const [hintRevealed, setHintRevealed] = useState(false);
   
   const config = difficultyConfig[difficulty as keyof typeof difficultyConfig] || difficultyConfig.Medium;
   
@@ -80,7 +84,26 @@ const TerminalHack: React.FC<TerminalHackProps> = ({
     
     // Generate password options
     setPasswordOptions(generatePasswordList(difficulty, password));
+    
+    // Console.log for debugging (will be removed in production)
+    console.log("Correct password:", password);
   }, [difficulty, config.passwordLength]);
+  
+  // Reveal a hint (one correct character position)
+  const revealHint = () => {
+    if (hintRevealed) return;
+    
+    setHintRevealed(true);
+    const hintPosition = Math.floor(Math.random() * correctPassword.length);
+    setMessage(`HINT: Position ${hintPosition + 1} is "${correctPassword[hintPosition]}"`);
+    
+    // Small security penalty for using a hint
+    const newSecurityLevel = Math.min(securityLevel + 10, 100);
+    setSecurityLevel(newSecurityLevel);
+    onSecurityLevelChange(100 - newSecurityLevel);
+    
+    setTimeout(() => setMessage(null), 5000);
+  };
   
   // Handle password submission
   const handleSubmit = useCallback(() => {
@@ -98,9 +121,9 @@ const TerminalHack: React.FC<TerminalHackProps> = ({
         setSecurityLevel(newSecurityLevel);
         onSecurityLevelChange(100 - newSecurityLevel);
         
-        // Add to attempt history
-        const correctChars = getPasswordHint(userInput.toUpperCase(), correctPassword);
-        setAttemptHistory(prev => [...prev, { password: userInput.toUpperCase(), correctChars }]);
+        // Add to attempt history with improved feedback
+        const { correctChars, correctPositions } = getPasswordHint(userInput.toUpperCase(), correctPassword);
+        setAttemptHistory(prev => [...prev, { password: userInput.toUpperCase(), correctChars, correctPositions }]);
         
         if (newAttempts >= config.maxAttempts) {
           setMessage("ACCESS DENIED - MAXIMUM ATTEMPTS REACHED");
@@ -146,7 +169,11 @@ const TerminalHack: React.FC<TerminalHackProps> = ({
             <p className="text-cyber-cyan mb-1">POSSIBLE PASSWORD COMBINATIONS:</p>
             <div className="grid grid-cols-2 gap-2 mb-6">
               {passwordOptions.map((pass, index) => (
-                <div key={index} className="cyber-border bg-cyber-dark/30 p-2 text-center">
+                <div 
+                  key={index} 
+                  className="cyber-border bg-cyber-dark/30 p-2 text-center cursor-pointer hover:bg-cyber-dark/50 transition-colors"
+                  onClick={() => setUserInput(pass)}
+                >
                   {pass}
                 </div>
               ))}
@@ -192,6 +219,11 @@ const TerminalHack: React.FC<TerminalHackProps> = ({
                           : 'text-yellow-400'
                     }>
                       {attempt.correctChars}/{correctPassword.length} correct
+                      {attempt.correctChars > 0 && attempt.correctPositions.length > 0 && (
+                        <span className="ml-1 text-xs">
+                          (positions: {attempt.correctPositions.map(p => p + 1).join(', ')})
+                        </span>
+                      )}
                     </span>
                   </div>
                 ))}
@@ -204,7 +236,9 @@ const TerminalHack: React.FC<TerminalHackProps> = ({
               <p className={`cyber-border inline-block px-3 py-1 ${
                 message.includes("ACCESS GRANTED") 
                   ? "text-cyber-cyan border-cyber-cyan bg-cyber-cyan/10" 
-                  : "text-cyber-red border-cyber-red bg-cyber-red/10"
+                  : message.includes("HINT")
+                    ? "text-yellow-400 border-yellow-400 bg-yellow-400/10"
+                    : "text-cyber-red border-cyber-red bg-cyber-red/10"
               }`}>
                 {message}
               </p>
@@ -227,6 +261,16 @@ const TerminalHack: React.FC<TerminalHackProps> = ({
               style={{ width: `${securityLevel}%` }}
             ></div>
           </div>
+          
+          {!hintRevealed && (
+            <button 
+              onClick={revealHint}
+              className="mt-3 flex items-center gap-2 cyber-border bg-cyber-dark/50 px-3 py-1 text-cyber-cyan hover:bg-cyber-cyan/10 text-sm"
+            >
+              <Key size={14} />
+              <span>REVEAL PASSWORD HINT (+10% SECURITY)</span>
+            </button>
+          )}
         </div>
       </div>
       
@@ -245,7 +289,8 @@ const TerminalHack: React.FC<TerminalHackProps> = ({
             <h3 className="text-cyber-pink mb-1">PASSWORD CLUES:</h3>
             <ul className="list-disc list-inside text-cyber-gray/90 space-y-1">
               <li>Each attempt will tell you how many characters are in the correct position</li>
-              <li>Use process of elimination to determine the correct password</li>
+              <li>Click on any password in the list to automatically enter it</li>
+              <li>You can use the hint button to reveal one correct character</li>
               <li>You have {config.maxAttempts} attempts before the system locks down</li>
               <li>Each incorrect attempt raises the security level by {config.securityIncrease}%</li>
             </ul>
